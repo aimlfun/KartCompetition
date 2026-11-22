@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Racing Line Challenge</title>
+<meta name="description" content="Place numbered markers on the track, set a speed for each, and watch a physically simulated go-kart drive your line. Can you beat a barely-AI driver?">
+<style>
+  :root {
+    --bg: #0f1216;
+    --panel: #181d24;
+    --panel2: #202733;
+    --line: #2d3644;
+    --text: #e8edf3;
+    --muted: #93a0b2;
+    --accent: #ff4d3d;
+    --accent2: #ffb020;
+    --good: #3ddc84;
+    --bad: #ff5d5d;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  body { padding: 0 max(16px, env(safe-area-inset-right)) 32px max(16px, env(safe-area-inset-left)); }
+  .wrap { max-width: 980px; margin: 0 auto; }
+
+  header { padding: 18px 0 6px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; }
+  h1 { font-size: 24px; margin: 0; letter-spacing: .2px; }
+  h1 span { color: var(--accent); }
+  .tag { color: var(--muted); font-size: 14px; }
+
+  .how { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; margin: 10px 0; color: var(--muted); font-size: 14px; }
+  .how b { color: var(--text); font-weight: 600; }
+  .how ol { margin: 4px 0 0 18px; padding: 0; }
+
+  .stage { position: relative; background: #000; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+  canvas#stage { display: block; width: 100%; height: auto; touch-action: none; cursor: crosshair; user-select: none; -webkit-user-select: none; }
+  .stage.replay canvas#stage { cursor: default; }
+
+  .hud { position: absolute; left: 10px; top: 10px; display: flex; gap: 8px; pointer-events: none; flex-wrap: wrap; }
+  .chip { background: rgba(10,12,16,.72); border: 1px solid rgba(255,255,255,.12); border-radius: 10px; padding: 4px 10px; font-variant-numeric: tabular-nums; backdrop-filter: blur(4px); }
+  .chip small { color: var(--muted); display: block; font-size: 10px; text-transform: uppercase; letter-spacing: .6px; line-height: 1.1; }
+  .chip b { font-size: 18px; line-height: 1.15; }
+
+  .toast { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); background: rgba(10,12,16,.88); border: 1px solid var(--line); padding: 6px 14px; border-radius: 999px; font-size: 13px; opacity: 0; transition: opacity .2s; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+  .toast.bad { border-color: var(--bad); color: #ffd0d0; }
+
+  #driver { position: absolute; right: 10px; bottom: 10px; width: 36%; max-width: 330px; min-width: 150px; aspect-ratio: 16/9; border: 2px solid rgba(255,255,255,.25); border-radius: 10px; background: #123; display: none; image-rendering: pixelated; }
+  .stage.replay.dv #driver { display: block; }
+
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; align-items: center; }
+  button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 8px 14px; cursor: pointer; min-height: 40px; }
+  button:hover { border-color: #46556b; }
+  button:active { transform: translateY(1px); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; padding: 8px 22px; }
+  button.primary:hover { filter: brightness(1.1); }
+  button:disabled { opacity: .4; cursor: default; }
+  button.on { background: #2a3b55; border-color: #4b6b9b; }
+
+  .speed { display: flex; align-items: center; gap: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 3px 6px; }
+  .speed span { min-width: 4.8em; text-align: center; font-variant-numeric: tabular-nums; }
+  .speed button { padding: 4px 12px; min-height: 34px; }
+  .spacer { flex: 1; }
+
+  .play { display: none; gap: 8px; align-items: center; flex: 1 1 100%; }
+  .replay-on .play { display: flex; }
+  .play input[type=range] { flex: 1; accent-color: var(--accent); }
+
+  .result { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 10px 0; display: none; }
+  .result.show { display: block; }
+  .result .big { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .result .big.dnf { color: var(--bad); }
+  .result .big.ok { color: var(--good); }
+  .result .sub { color: var(--muted); }
+  .vs { margin-top: 6px; }
+  .vs b { color: var(--accent2); }
+
+  .share { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 10px 0; }
+  .share h2 { font-size: 15px; margin: 0 0 6px; }
+  .share .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .share input[type=text] { flex: 1 1 220px; min-width: 0; font: 13px ui-monospace, Consolas, monospace; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+  .hint { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+
+  details { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; margin: 10px 0; color: var(--muted); font-size: 14px; }
+  summary { cursor: pointer; color: var(--text); font-weight: 600; }
+  details p { margin: 8px 0 0; }
+  code { background: var(--bg); padding: 1px 5px; border-radius: 5px; }
+  footer { color: var(--muted); font-size: 13px; margin-top: 18px; }
+  a { color: #7db4ff; }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 20px; }
+    button { padding: 8px 10px; }
+    .chip b { font-size: 15px; }
+    #driver { width: 44%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><img src="flag.svg" width="30x" height="20px" /> Racing Line <span>Challenge</span></h1>
+    <div class="tag" id="trackName">Human vs. barely-AI</div>
+  </header>
+
+  <div class="how">
+    <b>How it works.</b>
+    <ol>
+      <li><b>Tap the tarmac</b> to drop numbered markers. The car starts at the chequered line, heading up, and drives them in order.</li>
+      <li>Each marker has a <b>target speed</b>. Select one and change it. Too fast and the kart slides off; too slow and you lose time.</li>
+      <li>Hit <b>Try</b>. Real car physics (the same kart as my AI) decides what happens. Finish a lap to get a time and a code to share.</li>
+    </ol>
+  </div>
+
+  <div class="stage" id="stageBox">
+    <canvas id="stage"></canvas>
+    <canvas id="driver" width="320" height="180"></canvas>
+    <div class="hud">
+      <div class="chip"><small>Speed</small><b id="hudSpeed">0</b> <span style="color:var(--muted);font-size:12px">km/h</span></div>
+      <div class="chip"><small>Time</small><b id="hudTime">0.00</b> <span style="color:var(--muted);font-size:12px">s</span></div>
+    </div>
+    <div class="toast" id="toast"></div>
+  </div>
+
+  <div class="bar" id="bar">
+    <button class="primary" id="btnTry" title="Space / Enter">&#9654; Try</button>
+    <button id="btnUndo" title="Z">Undo</button>
+    <button id="btnDel" title="Delete">Delete marker</button>
+    <button id="btnClear">Clear</button>
+    <div class="speed" title="Target speed of the selected marker: tap for 1 km/h, hold to repeat, Shift for 5 (or the Up / Down arrows)">
+      <button id="spdDown" aria-label="Slower">&minus;</button>
+      <span id="spdVal">&ndash;</span>
+      <button id="spdUp" aria-label="Faster">+</button>
+    </div>
+    <button id="btnAll" title="Set every marker to the selected marker's speed">Same speed for all</button>
+    <div class="spacer"></div>
+    <button id="btnView" class="on" title="Show the in-kart view while the car drives">Kart view</button>
+
+    <div class="play">
+      <button id="btnPause">Pause</button>
+      <button class="sp on" data-sp="1">1&times;</button>
+      <button class="sp" data-sp="2">2&times;</button>
+      <button class="sp" data-sp="4">4&times;</button>
+      <input type="range" id="scrub" min="0" max="1" value="0" step="1" aria-label="Replay position">
+      <button id="btnEdit">Edit line</button>
+    </div>
+  </div>
+
+  <p class="hint" id="topHint"></p>
+
+  <div class="result" id="result">
+    <div class="big" id="resBig"></div>
+    <div class="sub" id="resSub"></div>
+    <div class="vs" id="resVs"></div>
+  </div>
+
+  <div class="share">
+    <h2>Your line as a code</h2>
+    <div class="row">
+      <input type="text" id="code" readonly placeholder="Place some markers and your code appears here" aria-label="Your line code">
+      <button id="btnCopy">Copy code</button>
+      <button id="btnLink">Copy link</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input type="text" id="codeIn" placeholder="Paste someone's code here to replay their line" aria-label="Paste a code">
+      <button id="btnLoad">Replay it</button>
+    </div>
+    <p class="hint">A code is just your markers and speeds, so anyone can paste it and get exactly your lap time. Post yours in the comments.</p>
+  </div>
+
+  <details>
+    <summary>How honest is the physics?</summary>
+    <p>The kart is a line-by-line port of the car model in my C# neural-network driving app: 158 kg, 3.5 hp, rear-wheel drive, slip-angle tyres (Pacejka), weight transfer, drag and a steering lock that shrinks with speed. The track mask, the car's size and the collision points come from that app, so a lap here is comparable to a lap there.</p>
+    <p>Your "driver" is a plain pure-pursuit controller: it steers towards a point a little way along your line and uses throttle and brake to chase the speed you asked for. It will not rescue a bad line. It will not get lucky either: the same code always gives the same lap.</p>
+    <p>You leave the track the moment any of the kart's nine collision points touches grass.</p>
+  </details>
+
+  <footer>Built as a Sunday experiment. The AI it is racing has 5 lidar beams and a tiny network.</footer>
+</div>
+
+<script src="track-data.js"></script>
+<script src="js/physics.js"></script>
+<script src="js/sim.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
