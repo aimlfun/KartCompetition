@@ -33,24 +33,6 @@ Keys: `Space`/`Enter` try, `Z` undo, `Delete` remove marker, `Up`/`Down` speed, 
   
 Winners should clarify their browser.
 
-## Putting a new track in
-
-The page runs on whatever `track-data.js` holds. To use a track from the C# app: (soon to be uploaded to GitHub, after the challenge)
-
-1. In the app: **Track > Load...**, pick the track, then **Track > Export for web...** (it needs the real physics and a vehicle,
-   see Configure > Vehicle). It writes `track.png`, `mask.png` and `track.json` to a folder on the Desktop.
-2. Pack it, adding the AI's lap time so the page can compare:
-
-   ```
-   node tools/pack-track.mjs "C:/Users/<you>/Desktop/web-challenge-export-Demo" 12.18 "Label of track"
-   ```
-
-   This writes `track-data.js`: the images are embedded as data URLs, because browsers will not let a page read the pixels
-   of a file next to it when opened from disk.
-
-`dev-export/` is a stand-in built from a plain picture (`tools/make-dev-track.py`) so the page could be developed without
-the app. The real export replaces it.
-
 ## Files
 
 | File | What it is |
@@ -60,6 +42,3 @@ the app. The real export replaces it.
 | `js/sim.js` | Track, lap rules, the line through your markers, the driver, a whole simulated lap |
 | `js/app.js` | Markers, replay, skid marks, kart view, codes |
 | `track-data.js` | The track: picture, mask, gates, physics. Generated |
-| `tools/pack-track.mjs` | Turns an export folder into `track-data.js` |
-| `tools/test-sim.mjs` | Headless check: drives the gate mid-points at a few speeds |
-| `tools/optimise.mjs` | Crude hill-climb: how fast can a line be? (sanity check, not shipped to players) |
